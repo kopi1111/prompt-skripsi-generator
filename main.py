@@ -53,7 +53,11 @@ if st.button("Generate Prompts"):
             "PromptName": tpl["title"],
             "UseCase": tpl["use_case"],
             "CopyPastePrompt": prompt_text,
-            "InputExample": json.dumps(input_example, ensure_ascii=False),
+            "InputExample": input_example = {
+    "field_1": "Contoh input",
+    "field_2": "Contoh output"
+}
+json.dumps(input_example, ensure_ascii=False),
             "OutputExample": example_output,
             "QCStatus": status,
             "QCIssues": "; ".join(issues)
