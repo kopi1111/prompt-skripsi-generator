@@ -1,0 +1,2 @@
+No,PromptID,PromptName,UseCase,CopyPastePrompt,InputExample,OutputExample,QCStatus,QCIssues
+1,SKR-B1-V1,Bab 1,Outline Bab 1,Template prompt example,"{\"bidang_studi\":\"Teknik Informatika\"}",Contoh output,✓ QC Pass,
