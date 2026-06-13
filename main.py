@@ -6,19 +6,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 GEMINI_AVAILABLE = False
+model = None
 
 def init_gemini():
-    global GEMINI_AVAILABLE
+    global GEMINI_AVAILABLE, model
     try:
         import google.generativeai as genai
         GEMINI_API_KEY = "AIzaSyDgAQ.Ab8RN6LJArtk9dS_wZF5KfcSMXmG9f-cCncIv6U0oizK50wWVQ"
         genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         GEMINI_AVAILABLE = True
-        return genai.GenerativeModel('gemini-1.5-flash'), genai
+        return True
     except ImportError as e:
-        logger.error(f"Google Generative AI not available: {e}")
-        GEMIUM_AVAILABLE = False
-        return None, None
+        logger.error(f"Import error: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Config error: {e}")
+        return False
 
 st.set_page_config(page_title="Prompt Skripsi Generator", page_icon="📚", layout="wide")
 st.title("📚 Prompt Skripsi Generator")
@@ -44,7 +48,6 @@ with col2:
     st.subheader("👀 Preview Konfigurasi")
     config_preview = {"Bidang Studi": field_of_study, "Format Sitasi": citation_format, "Tone": tone, "Jumlah Prompt": num_prompts}
     st.json(config_preview)
-    st.info("ℹ️ Konfigurasi di atas akan digunakan untuk generate prompts.")
 
 st.divider()
 
@@ -53,52 +56,53 @@ if st.button("🚀 Generate Prompts", type="primary", use_container_width=True):
         st.error("❌ Mohon isi semua field terlebih dahulu!")
     else:
         with st.spinner("⏳ Initializing Gemini AI..."):
-            model, genai = init_gemini()
-        
-        if not GEMINI_AVAILABLE or not model:
-            st.error("❌ Tidak bisa mengakses Gemini API!")
-            st.error("Pastikan google-generativeai sudah di-install")
-        else:
-            with st.spinner("⏳ Sedang membuat prompts dengan Gemini AI..."):
-                system_message = f"""Anda adalah expert dalam membuat prompt berkualitas tinggi untuk penelitian akademik skripsi.
-Buatkan {num_prompts} prompt yang berbeda untuk membantu penelitian skripsi.
+            if not init_gemini():
+                st.error("❌ Tidak bisa mengakses Gemini API!")
+                st.error("Pastikan google-generativeai sudah terinstall")
+            elif model is None:
+                st.error("❌ Model tidak tersedia!")
+            else:
+                with st.spinner("⏳ Sedang membuat prompts..."):
+                    system_message = f"""Anda adalah expert dalam membuat prompt berkualitas tinggi untuk penelitian akademik skripsi.
+Buatkan {num_prompts} prompt yang berbeda untuk membantu penelitian skripsi dengan judul: {title}
 
-KONTEKS:
-- Bidang: {field_of_study}
-- Judul: {title}
-- Kata Kunci: {keywords}
-- Deskripsi: {description}
+Kata kunci: {keywords}
+Bidang studi: {field_of_study}
+Format sitasi: {citation_format}
+Deskripsi: {description}
 
-OUTPUT: JSON format saja
+OUTPUT: JSON format ONLY:
 {{"prompts": [{{"nomor": 1, "judul": "...", "isi": "...", "tipe": "...", "use_case": "..."}}]}}"""
-                
-                try:
-                    response = model.generate_content(system_message)
-                    response_text = response.text
                     
-                    json_start = response_text.find('{')
-                    json_end = response_text.rfind('}') + 1
-                    
-                    if json_start != -1 and json_end > json_start:
-                        json_str = response_text[json_start:json_end]
-                        prompts_data = json.loads(json_str)
+                    try:
+                        response = model.generate_content(system_message)
+                        response_text = response.text
                         
-                        st.success("✅ Prompts berhasil dibuat!")
-                        st.divider()
-                        st.subheader("📌 Generated Prompts")
+                        json_start = response_text.find('{')
+                        json_end = response_text.rfind('}') + 1
                         
-                        for prompt in prompts_data.get("prompts", []):
-                            with st.expander(f"**{prompt.get('judul', 'Prompt')}** — {prompt.get('tipe', 'general')}"):
-                                st.markdown(f"**📋 Isi Prompt:**")
-                                st.write(prompt.get('isi', 'N/A'))
-                                st.markdown(f"**💡 Kapan Digunakan:**")
-                                st.info(prompt.get('use_case', 'General use'))
-                        
-                        st.divider()
-                        json_output = json.dumps(prompts_data, ensure_ascii=False, indent=2)
-                        st.download_button("📄 Download JSON", json_output, f"prompts_{title[:20]}.json", "application/json")
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                        if json_start != -1 and json_end > json_start:
+                            json_str = response_text[json_start:json_end]
+                            prompts_data = json.loads(json_str)
+                            
+                            st.success("✅ Prompts berhasil dibuat!")
+                            st.divider()
+                            st.subheader("📌 Generated Prompts")
+                            
+                            for prompt in prompts_data.get("prompts", []):
+                                with st.expander(f"**{prompt.get('judul', 'Prompt')}** — {prompt.get('tipe', 'general')}"):
+                                    st.markdown(f"**📋 Isi Prompt:**")
+                                    st.write(prompt.get('isi', 'N/A'))
+                                    st.markdown(f"**💡 Kapan Digunakan:**")
+                                    st.info(prompt.get('use_case', 'General use'))
+                            
+                            st.divider()
+                            json_output = json.dumps(prompts_data, ensure_ascii=False, indent=2)
+                            st.download_button("📄 Download JSON", json_output, f"prompts_{title[:20]}.json", "application/json")
+                    except json.JSONDecodeError as e:
+                        st.error(f"❌ JSON parse error: {e}")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
 
 st.divider()
 st.markdown("<div style='text-align: center'><small>© 2024 Prompt Skripsi Generator | Powered by Google Gemini 1.5 Flash</small></div>", unsafe_allow_html=True)
